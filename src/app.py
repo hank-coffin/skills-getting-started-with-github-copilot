@@ -189,8 +189,9 @@ def signup_for_activity(activity_name: str, email: str):
     # Normalize email for comparison (trimmed + case-insensitive)
     normalized_email = email.strip().lower()
 
-    # Prevent duplicate signups for the same activity
-    if any(participant.strip().lower() == normalized_email for participant in activity["participants"]):
+    # Prevent duplicate signups for the same activity (including auditioned members)
+    all_members = activity["participants"] + activity.get("auditioned", [])
+    if any(member.strip().lower() == normalized_email for member in all_members):
         raise HTTPException(status_code=400, detail="Student is already signed up for this activity")
 
     # Prevent duplicate waitlist entries
@@ -199,8 +200,9 @@ def signup_for_activity(activity_name: str, email: str):
 
     cleaned_email = email.strip()
 
-    # If space is available, add as participant
-    if len(activity["participants"]) < activity["max_participants"]:
+    # If space is available, add as participant (count both participants and auditioned members)
+    current_roster_size = len(activity["participants"]) + len(activity.get("auditioned", []))
+    if current_roster_size < activity["max_participants"]:
         activity["participants"].append(cleaned_email)
         return {"message": f"Signed up {cleaned_email} for {activity_name}"}
 
