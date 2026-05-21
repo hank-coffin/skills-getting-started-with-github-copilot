@@ -3,30 +3,80 @@ document.addEventListener("DOMContentLoaded", () => {
   const activitySelect = document.getElementById("activity");
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
+  const submitButton = signupForm.querySelector("button[type='submit']");
+  const maxWaitlistSize = 5;
+  let activitiesCache = {};
+
+  function makeParticipantItem(activityName, email, suffix) {
+    return `<li>
+      <button class="remove-participant" data-email="${email}" data-activity="${activityName}" title="Remove participant">&#x2715;</button>
+      ${email}${suffix}
+    </li>`;
+  }
+
+  function buildParticipantsList(activityName, details) {
+    const participants = details.participants || [];
+    const auditioned = details.auditioned || [];
+    const requiresAudition = details.requires_audition === true;
+
+    if (participants.length === 0 && auditioned.length === 0) {
+      return "<li class=\"participants-empty\">No participants yet</li>";
+    }
+
+    if (!requiresAudition) {
+      return participants.map((p) => makeParticipantItem(activityName, p, "")).join("");
+    }
+
+    const orderedAuditioned = auditioned.map((p) => makeParticipantItem(activityName, p, "")).join("");
+    const pendingAudition = participants.map((p) => makeParticipantItem(activityName, p, "*")).join("");
+
+    return `${orderedAuditioned}${pendingAudition}`;
+  }
 
   // Function to fetch activities from API
   async function fetchActivities() {
     try {
-      const response = await fetch("/activities");
+      const response = await fetch("/activities", { cache: "no-store" });
       const activities = await response.json();
+      activitiesCache = activities;
 
       // Clear loading message
       activitiesList.innerHTML = "";
+      activitySelect.innerHTML = "<option value=\"\">-- Select an activity --</option>";
 
       // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
         const activityCard = document.createElement("div");
         activityCard.className = "activity-card";
 
+        const requiresAudition = details.requires_audition === true;
+        const displayName = requiresAudition ? `${name} (By Audition only)` : name;
         const spotsLeft = details.max_participants - details.participants.length;
         const instructor = details.instructor || "TBD";
+        const waitlist = details.waitlist || [];
+        const waitlistSpotsLeft = maxWaitlistSize - waitlist.length;
+        const isParticipantsFull = details.participants.length >= details.max_participants;
+        const waitlistStatus = isParticipantsFull
+          ? `<p><strong>Waitlist:</strong> ${waitlist.length}/${maxWaitlistSize} filled (${waitlistSpotsLeft} spots left)</p>`
+          : "";
+        const auditionFootnote = requiresAudition
+          ? '<p class="participants-footnote">* Students with asterisks must audition.</p>'
+          : "";
 
         activityCard.innerHTML = `
-          <h4>${name}</h4>
+          <h4>${displayName}</h4>
           <p><strong>Instructor:</strong> ${instructor}</p>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          ${waitlistStatus}
+          <details class="participants-panel">
+            <summary>Participants (${details.participants.length})</summary>
+            <ul class="participants-list">
+              ${buildParticipantsList(name, details)}
+            </ul>
+            ${auditionFootnote}
+          </details>
         `;
 
         activitiesList.appendChild(activityCard);
@@ -37,10 +87,42 @@ document.addEventListener("DOMContentLoaded", () => {
         option.textContent = name;
         activitySelect.appendChild(option);
       });
+
+      updateSignupButtonState();
     } catch (error) {
       activitiesList.innerHTML = "<p>Failed to load activities. Please try again later.</p>";
       console.error("Error fetching activities:", error);
     }
+  }
+
+  function updateSignupButtonState() {
+    const selectedActivityName = activitySelect.value;
+    const selectedActivity = activitiesCache[selectedActivityName];
+
+    if (!selectedActivity) {
+      submitButton.textContent = "Sign Up";
+      submitButton.disabled = false;
+      return;
+    }
+
+    const isParticipantsFull = selectedActivity.participants.length >= selectedActivity.max_participants;
+    const waitlist = selectedActivity.waitlist || [];
+    const isWaitlistFull = waitlist.length >= maxWaitlistSize;
+
+    if (!isParticipantsFull) {
+      submitButton.textContent = "Sign Up";
+      submitButton.disabled = false;
+      return;
+    }
+
+    if (!isWaitlistFull) {
+      submitButton.textContent = "Waitlist";
+      submitButton.disabled = false;
+      return;
+    }
+
+    submitButton.textContent = "Full";
+    submitButton.disabled = true;
   }
 
   // Handle form submission
@@ -64,6 +146,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
@@ -80,6 +163,30 @@ document.addEventListener("DOMContentLoaded", () => {
       messageDiv.className = "error";
       messageDiv.classList.remove("hidden");
       console.error("Error signing up:", error);
+    }
+  });
+
+  activitySelect.addEventListener("change", () => {
+    updateSignupButtonState();
+  });
+
+  activitiesList.addEventListener("click", async (event) => {
+    const btn = event.target.closest(".remove-participant");
+    if (!btn) return;
+
+    const email = btn.dataset.email;
+    const activity = btn.dataset.activity;
+
+    try {
+      const response = await fetch(
+        `/activities/${encodeURIComponent(activity)}/signup?email=${encodeURIComponent(email)}`,
+        { method: "DELETE" }
+      );
+      if (response.ok) {
+        fetchActivities();
+      }
+    } catch (error) {
+      console.error("Error removing participant:", error);
     }
   });
 
