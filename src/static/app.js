@@ -19,9 +19,11 @@ document.addEventListener("DOMContentLoaded", () => {
         activityCard.className = "activity-card";
 
         const spotsLeft = details.max_participants - details.participants.length;
+        const instructor = details.instructor || "TBD";
 
         activityCard.innerHTML = `
           <h4>${name}</h4>
+          <p><strong>Instructor:</strong> ${instructor}</p>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
