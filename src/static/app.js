@@ -7,10 +7,20 @@ document.addEventListener("DOMContentLoaded", () => {
   const maxWaitlistSize = 5;
   let activitiesCache = {};
 
+  function escapeHtml(str) {
+    return str
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
   function makeParticipantItem(activityName, email, suffix) {
+    const safeEmail = escapeHtml(email);
+    const safeActivity = escapeHtml(activityName);
     return `<li>
-      <button class="remove-participant" data-email="${email}" data-activity="${activityName}" title="Remove participant">&#x2715;</button>
-      ${email}${suffix}
+      <button class="remove-participant" data-email="${safeEmail}" data-activity="${safeActivity}" title="Remove participant">&#x2715;</button>
+      ${safeEmail}${suffix}
     </li>`;
   }
 
