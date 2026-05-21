@@ -20,7 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const safeEmail = escapeHtml(email);
     const safeActivity = escapeHtml(activityName);
     return `<li>
-      <button class="remove-participant" data-email="${safeEmail}" data-activity="${safeActivity}" title="Remove participant">&#x2715;</button>
+      <button class="remove-participant" data-email="${safeEmail}" data-activity="${safeActivity}" title="Remove participant" aria-label="Remove participant">&#x2715;</button>
       ${safeEmail}${suffix}
     </li>`;
   }
